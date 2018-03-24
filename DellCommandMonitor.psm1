@@ -148,6 +148,26 @@ function Get-BootOrderObject {
     }
 }
 
+function Get-BootOrder {
+    [CmdLetBinding()]
+    Param()
+    Begin {
+    }
+    Process {
+        $CurrentBootOrder = Get-BootOrderObject -BootOrderType (Get-CurrentBootMode) | ForEach-Object {
+            $PartComponent = $_.PartComponent
+            $PartComponentMatch = $PartComponent.Replace('/','\\')
+            $Query = "Select * from DCIM_BootSourceSetting Where __PATH = '" + $PartComponentMatch + "'"
+            [PSCustomObject]@{
+                'AssignedSequence' = $_.AssignedSequence
+                'BiosBootString' = (Get-WmiObject -Namespace root\dcim\sysman -query $Query).BiosBootString
+                'PartComponent' = $PartComponent
+            }
+        }
+        $CurrentBootOrder
+    }
+}
+
 function Get-UEFIBootOrder {
     [CmdLetBinding()]
     Param()
@@ -169,6 +189,27 @@ function Get-UEFIBootOrder {
             }
         }
         $CurrentBootOrder
+    }
+}
+
+function New-BootOrder {
+    [CmdLetBinding()]
+        Param(
+            [ValidateScript({
+                if ($_ -notin (Get-BootOrder).BiosBootString) {
+                    throw "Enter valid boot order strings. Obtain valid strings using the Get-BootOrder cmdlet"
+                } else {
+                    $true
+                }
+            })]
+        [string]$Order
+        )
+    Begin {}
+    Process {
+        ForEach ($BootItem in $Order) {
+            Get-BootOrder | Where-Object {$_.BiosBootString -eq $BootItem}
+        }
+        
     }
 }
 
@@ -210,7 +251,75 @@ function Get-BootConfigObject {
     }
 }
 
+function Set-BootOrder {
+[CmdLetBinding()]
+    Param(
+        [ValidateScript(
+            {
+                if ($_.PartComponent) {
+                    $True
+                } Else {
+                    Throw "Not a valid boot order"
+                }
+            }
+        )]$BootOrder,
+        [string]$BiosPassword,
+        [switch]$SuspendBitlocker
+    )
+    Begin {
+        if (-Not (Get-BootOrderObject -BootOrderType (Get-CurrentBootMode))) {
+            Write-Verbose "No Boot list configured"
+            break
+        } 
+    }
+    Process {
+        $BootOrderArray = $BootOrder | ForEach-Object {$_.PartComponent}
+        If ($SuspendBitlocker) {
+            $Bitlocker = Get-BitLockerVolume -MountPoint $env:SystemDrive
+            If ($Bitlocker.ProtectionStatus.ToString() -eq 'On') {
+                Write-Verbose 'Suspending Bitlocker'
+                Suspend-BitLocker -MountPoint $env:SystemDrive -ErrorAction Stop | Out-Null
+                Write-Verbose 'Bitlocker Suspended'
+            } Else {
+                Write-Verbose 'Bitlocker protections already disabled'
+            }
+        }
+        Write-Verbose 'Setting new boot order'
+        $Result = (Get-BootConfigObject -BootConfigType (Get-CurrentBootMode)).changebootorder($BootOrderArray, $BiosPassword)
+        If ($Result.ReturnValue -eq 0) {
+            Write-Verbose 'Succesfully set new boot order'
+            Get-BootOrder
+        } else {
+            Write-Error "Failed to set new boot order"
+        }
+    }
+}
+
 function Set-UEFIBootOrder {
+   <#
+   .SYNOPSIS
+   Set boot order of a UEFI configured Dell PC with Dell Command | Monitor installed
+   
+   .DESCRIPTION
+   Using the Sysman\DCIM namespace that Dell Command | Monitor makes available, set the boot order using the changebootorder method of the dcim_bootconfigsetting class
+   
+   .PARAMETER BootOrder
+   An array of strings matching valid boot order strings. Valid values can be obtained using the Get-UEFIBootOrder cmdlet
+   
+   .PARAMETER BiosPassword
+   Blank if no bios password is set, otherwise set this or the command will fail.
+   
+   .PARAMETER SuspendBitlocker
+   If Bitlocker is enabled, it would be wise to suspend it for the next boot in order to avoid triggering bitlocker recovery mode.
+   
+   .EXAMPLE
+   PS> Set-UEFIBootOrder -BiosPassword 'mumstheword' -BootOrder (New-UEFIBootOrder -Order 'Onboard NIC(IPV4)') -SuspendBitlocker
+
+   Set's the Onboard Nic to be the first boot object. In this case any boot objects not specified are effectivly disabled. A saner option would be to put 'Windows Boot Manager' second
+   
+   .NOTES
+   Written with much love by Jesse Harris
+   #>  
     [CmdLetBinding()]
     Param(
         [ValidateScript(
@@ -253,5 +362,3 @@ function Set-UEFIBootOrder {
         }
     }
 }
-
-
