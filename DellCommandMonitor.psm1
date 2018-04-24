@@ -37,9 +37,10 @@ function Set-DellBiosPassword {
 }
 
 function Get-BiosAttribute {
-    [CmdLetBinding()]
+    [CmdLetBinding(DefaultParameterSetName='Get')]
     Param(
         [parameter(ParameterSetName='Get')]
+        [parameter(Position=0)]
         [ValidateScript(
             {
                 If (-not $Global:BiosAttributeList) {
