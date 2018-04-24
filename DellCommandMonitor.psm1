@@ -42,7 +42,10 @@ function Get-BiosAttribute {
         [parameter(ParameterSetName='Get')]
         [ValidateScript(
             {
-                $_ -in (Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration).AttributeName
+                If (-not $Global:BiosAttributeList) {
+                    $Global:BiosAttributeList = (Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration).AttributeName | Sort-Object
+                }
+                $_ -in $Global:BiosAttributeList
             }
         )]
         $AttributeName,
@@ -51,16 +54,18 @@ function Get-BiosAttribute {
 
     Begin {
         # Test if DCIM support exists
-        Try {
-            Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Out-Null
-        } catch {
-            Write-Error "DCIM not supported"
+        If (-Not $Global:BiosAttributeList) {
+            Try {
+                $Global:BiosAttributeList = Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Select-Object -Expand AttributeName | Sort-Object
+            } catch {
+                Write-Error "DCIM not supported"
+            }
         }
     }
 
     Process {
         If ($ListAttributes) {
-            Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Select-Object -ExpandProperty AttributeName | Sort-Object
+            $Global:BiosAttributeList
         } else {
             $AttributeValue = Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Where-Object {$_.AttributeName -eq $AttributeName} 
             $CurrentValue = $AttributeValue.CurrentValue
