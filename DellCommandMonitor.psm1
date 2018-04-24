@@ -37,6 +37,38 @@ function Set-DellBiosPassword {
 }
 
 function Get-BiosAttribute {
+    <#
+    .SYNOPSIS
+        Display bios attributes using Dell Command | Monitor
+    .DESCRIPTION
+        List available bios attributes which can be set, or display a single attribute, its current value and possible values
+    .PARAMETER ListAttributes
+        Return a list of attributes available on the current system
+    .PARAMETER AttributeName
+        Return the current value of the attribute, it's possible values and their descriptions
+    .EXAMPLE
+        PS> Get-BiosAttribue -AttributeName "Auto on Tuesday"
+
+        AttributeName             : Auto on Tuesday
+        CurrentSettingDescription : Disable
+        CurrentValue              : {2}
+        PossibleValuesDescription : {Enable, Disable}
+        PossibleValues            : {1, 2}
+    .EXAMPLE
+        PS> Get-BiosAttribue -ListAvaialable
+
+        AC Power Recovery Mode
+        Admin Setup Lockout
+        Advanced Battery Charging Mode
+        Always Allow Dell Docks
+        Attempt Legacy Boot
+        Auto On
+    .NOTES
+        Author: Jesse Harris
+        Version: 1.0
+    .LINK
+        https://github.com/zigford/DellCommandMonitor
+    #>
     [CmdLetBinding(DefaultParameterSetName='Get')]
     Param(
         [parameter(ParameterSetName='Get')]
@@ -84,6 +116,30 @@ function Get-BiosAttribute {
 }
 
 function Set-BiosAttribute {
+    <#
+    .SYNOPSIS
+        Set a bios attribute
+    .DESCRIPTION
+        Set bios attributes to a possible value using the Dell Command | Monitor cim system
+    .PARAMETER AttributeName
+        Specify the bios attribute to set
+    .PARAMETER ValueName
+        Specify the name of the value to set. Obtained using Get-BiosAttribute -AttributeName 
+    .PARAMETER Whatif
+        Shows what would happen if the cmdlet runs. The cmdlet is not run.
+    .EXAMPLE
+        # Enable bios auto on, for Tuesday and Friday
+        PS>  'Tuesday','Friday'|%{Set-BiosAttribute -AttributeName "Auto on $_" Enable -BiosPassword password}
+    .EXAMPLE
+        # Use whatif to test what would happen when setting the Auto On hour to 3
+        PS> Set-BiosAttribute 'Auto On Hour' -ValueName 3 -Whatif
+        What if: Performing the operation "SetBiosAttribute" on target Auto On Hour. 
+    .NOTES
+        Author: Jesse Harris
+
+    .LINK
+        https://github.com/zigford/DellCommandMonitor
+    #>
     [CmdLetBinding()]
     Param(
         [Parameter(Mandatory=$True)][ValidateScript({$_ -in (Get-BiosAttribute -ListAttributes)})][string]$AttributeName,
