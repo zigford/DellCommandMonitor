@@ -87,13 +87,21 @@ function Set-BiosAttribute {
     Param(
         [Parameter(Mandatory=$True)][ValidateScript({$_ -in (Get-BiosAttribute -ListAttributes)})][string]$AttributeName,
         [Parameter(Mandatory=$True)]$ValueName,
+        [switch]$Whatif=$False,
         $BiosPassword
     )
     Begin {
         #Check if the value is a possible value
         $CurrentAttribute = Get-BiosAttribute -AttributeName $AttributeName
-        if ($ValueName -notin $CurrentAttribute.PossibleValuesDescription) {
-            Write-Error "Value falls outside of possible values. Can only be one of: $($CurrentAttribute.PossibleValuesDescription)"
+        if ($CurrentAttribute.PossibleValuesDescription.Count -eq 1) {
+            $PossibleRange = $CurrentAttribute.PossibleValuesDescription.Split('-')[0]..$CurrentAttribute.PossibleValuesDescription.Split('-')[1]
+            if ($ValueName -notin $PossibleRange) {
+                Write-Error "Value falls outside of possible range. Can only be between $($CurrentAttribute.PossibleValuesDescription)"
+            }
+        } else {
+            if ($ValueName -notin $CurrentAttribute.PossibleValuesDescription) {
+                Write-Error "Value falls outside of possible values. Can only be one of: $($CurrentAttribute.PossibleValuesDescription)"
+            }
         }
     }
 
@@ -106,11 +114,15 @@ function Set-BiosAttribute {
         }
         Write-Verbose "Setting Attribute $AttributeName to value $SetToValue"
         $BiosService = Get-WMIObject -Namespace root\dcim\sysman -Class DCIM_BiosService
-        $Result = $BiosService.SetBiosAttributes($null,$null,"$AttributeName","$SetToValue",$BiosPassword)
-        If ($Result.SetResult[0] -eq 0) {
-            Write-Verbose "Succesfully updated attribute value"
+        If ($Whatif) {
+            Write-Host "What if: Performing the operation ""SetBiosAttribute"" on target $AttributeName."
         } else {
-            Write-Error "Failed to update attribute value"
+            $Result = $BiosService.SetBiosAttributes($null,$null,"$AttributeName","$SetToValue",$BiosPassword)
+            If ($Result.SetResult[0] -eq 0) {
+                Write-Verbose "Succesfully updated attribute value"
+            } else {
+                Write-Error "Failed to update attribute value. Check password"
+            }
         }
     }
 }
