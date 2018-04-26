@@ -45,7 +45,7 @@ function Get-BiosAttribute {
     .PARAMETER ListAttributes
         Return a list of attributes available on the current system
     .PARAMETER AttributeName
-        Return the current value of the attribute, it's possible values and their descriptions
+        Return the current value of the attribute, it's possible values and their descriptions. AttributeName is case sensitive.
     .EXAMPLE
         PS> Get-BiosAttribue -AttributeName "Auto on Tuesday"
 
@@ -71,14 +71,18 @@ function Get-BiosAttribute {
     #>
     [CmdLetBinding(DefaultParameterSetName='Get')]
     Param(
-        [parameter(ParameterSetName='Get')]
+        [parameter(ParameterSetName='Get',Mandatory=$True)]
         [parameter(Position=0)]
         [ValidateScript(
             {
                 If (-not $Global:BiosAttributeList) {
                     $Global:BiosAttributeList = (Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration).AttributeName | Sort-Object
                 }
-                $_ -in $Global:BiosAttributeList
+                If ($_ -cin $Global:BiosAttributeList) {
+                    $True
+                } else {
+                    Throw "$_ does not match a valid AttributeName. AttributeNames are case sensitive"
+                }
             }
         )]
         $AttributeName,
@@ -100,7 +104,7 @@ function Get-BiosAttribute {
         If ($ListAttributes) {
             $Global:BiosAttributeList
         } else {
-            $AttributeValue = Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Where-Object {$_.AttributeName -eq $AttributeName} 
+            $AttributeValue = Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Where-Object {$_.AttributeName -ceq $AttributeName} 
             $CurrentValue = $AttributeValue.CurrentValue
             $PossibleValueIndex = for ($i=0;$i -lt $AttributeValue.PossibleValues.Count;$i++) { If ($AttributeValue.PossibleValues[$i] -eq $CurrentValue) {$i}}
             $ValueDescription = $AttributeValue.PossibleValuesDescription[$PossibleValueIndex]
@@ -122,7 +126,7 @@ function Set-BiosAttribute {
     .DESCRIPTION
         Set bios attributes to a possible value using the Dell Command | Monitor cim system
     .PARAMETER AttributeName
-        Specify the bios attribute to set
+        Specify the bios attribute to set. AttributeName is case sensitive.
     .PARAMETER ValueName
         Specify the name of the value to set. Obtained using Get-BiosAttribute -AttributeName 
     .PARAMETER Whatif
@@ -142,7 +146,13 @@ function Set-BiosAttribute {
     #>
     [CmdLetBinding()]
     Param(
-        [Parameter(Mandatory=$True)][ValidateScript({$_ -in (Get-BiosAttribute -ListAttributes)})][string]$AttributeName,
+        [Parameter(Mandatory=$True)][ValidateScript({
+            If ($_ -cin (Get-BiosAttribute -ListAttributes)){
+                $True
+            } else {
+                Throw "$_ does not match a valid AttributeName. AttributeNames are case sensitive"
+            }
+        })][string]$AttributeName,
         [Parameter(Mandatory=$True)]$ValueName,
         [switch]$Whatif=$False,
         $BiosPassword
