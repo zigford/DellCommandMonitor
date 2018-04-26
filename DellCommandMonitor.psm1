@@ -106,8 +106,15 @@ function Get-BiosAttribute {
         } else {
             $AttributeValue = Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Where-Object {$_.AttributeName -ceq $AttributeName} 
             $CurrentValue = $AttributeValue.CurrentValue
-            $PossibleValueIndex = for ($i=0;$i -lt $AttributeValue.PossibleValues.Count;$i++) { If ($AttributeValue.PossibleValues[$i] -eq $CurrentValue) {$i}}
-            $ValueDescription = $AttributeValue.PossibleValuesDescription[$PossibleValueIndex]
+            If ($AttributeValue.PossibleValuesDescription.Count -eq 1 -and $AttributeValue.PossibleValuesDescription -match '-') {
+                # Values are expressed as a range
+                $ValueDescription = $CurrentValue
+            } else {
+                # Values are expressed as an index of description
+                $PossibleValueIndex = for ($i=0;$i -lt $AttributeValue.PossibleValues.Count;$i++) { If ($AttributeValue.PossibleValues[$i] -eq $CurrentValue) {$i}}
+                $ValueDescription = $AttributeValue.PossibleValuesDescription[$PossibleValueIndex]
+
+            }
             [PSCustomObject]@{
                 'AttributeName' = $AttributeName
                 'CurrentSettingDescription' = $ValueDescription
@@ -160,7 +167,8 @@ function Set-BiosAttribute {
     Begin {
         #Check if the value is a possible value
         $CurrentAttribute = Get-BiosAttribute -AttributeName $AttributeName
-        if ($CurrentAttribute.PossibleValuesDescription.Count -eq 1) {
+        if ($CurrentAttribute.PossibleValuesDescription.Count -eq 1 -and $CurrentAttribute.PossibleValuesDescription -match '-') {
+            #Possible values are expressed as a range. Check if valuename fits in the range
             $PossibleRange = $CurrentAttribute.PossibleValuesDescription.Split('-')[0]..$CurrentAttribute.PossibleValuesDescription.Split('-')[1]
             if ($ValueName -notin $PossibleRange) {
                 Write-Error "Value falls outside of possible range. Can only be between $($CurrentAttribute.PossibleValuesDescription)"
@@ -174,9 +182,17 @@ function Set-BiosAttribute {
 
     Process {
         # Calculate what the Value number will be.
-        for ($i=0;$i -lt $CurrentAttribute.PossibleValuesDescription.Count;$i++) {
-            If ($CurrentAttribute.PossibleValuesDescription[$i] -eq $ValueName) {
-                $SetToValue = $CurrentAttribute.PossibleValues[$i]
+        If ($CurrentAttribute.PossibleValuesDescription.Count -eq 1 -and $CurrentAttribute.PossibleValuesDescription -match '-') {
+            # If the value is a range, then the valuename has already passed validation and can be set directly.
+            Write-Debug "Detected possible values as a range."
+            $SetToValue = $ValueName
+        } else {
+            # The value is not a range but a description of a possible value, calculate index of possible value
+            Write-Debug "Detected possible values as a description."            
+            for ($i=0;$i -lt $CurrentAttribute.PossibleValuesDescription.Count;$i++) {
+                If ($CurrentAttribute.PossibleValuesDescription[$i] -eq $ValueName) {
+                    $SetToValue = $CurrentAttribute.PossibleValues[$i]
+                }
             }
         }
         Write-Verbose "Setting Attribute $AttributeName to value $SetToValue"
