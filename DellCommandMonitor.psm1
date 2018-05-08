@@ -75,23 +75,27 @@ function Get-BiosAttribute {
         [parameter(Position=0)]
         [ValidateScript(
             {
-                If (-not $Global:BiosAttributeList) {
-                    $Global:BiosAttributeList = (Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration).AttributeName | Sort-Object
-                }
-                If ($_ -cin $Global:BiosAttributeList) {
-                    $True
-                } else {
-                    Throw "$_ does not match a valid AttributeName. AttributeNames are case sensitive"
+                If (-Not $ComputerName) {
+                    # Only validate attributes if we are running locally
+                    If (-not $Global:BiosAttributeList) {
+                        $Global:BiosAttributeList = (Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration).AttributeName | Sort-Object
+                    }
+                    If ($_ -cin $Global:BiosAttributeList) {
+                        $True
+                    } else {
+                        Throw "$_ does not match a valid AttributeName. AttributeNames are case sensitive"
+                    }
                 }
             }
         )]
         $AttributeName,
-        [Parameter(ParameterSetName='List')][Switch]$ListAttributes
+        [Parameter(ParameterSetName='List')][Switch]$ListAttributes,
+        [Parameter(ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$True)]$ComputerName
     )
 
     Begin {
         # Test if DCIM support exists
-        If (-Not $Global:BiosAttributeList) {
+        If (-Not $Global:BiosAttributeList -and -Not $ComputerName) {
             Try {
                 $Global:BiosAttributeList = Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Select-Object -Expand AttributeName | Sort-Object
             } catch {
@@ -102,7 +106,21 @@ function Get-BiosAttribute {
 
     Process {
         If ($ListAttributes) {
-            $Global:BiosAttributeList
+            if (-Not $ComputerName) {
+                $Global:BiosAttributeList
+            } else {
+                If ($ComputerName.ComputerName) {
+                    $ComputerName = $ComputerName.ComputerName
+                }
+                If (-Not (Test-WSMan -ComputerName $ComputerName)) {
+                    Try {
+                        Get-Service -ComputerName $ComputerName | Start-Service
+                    } catch {
+                        Thow "Could not start winrm on $ComputerName"
+                    }
+                }
+                Get-CimInstance -ComputerName $ComputerName -Namespace Root\DCIM\sysman -ClassName DCIM_BiosEnumeration | Select-Object -ExpandProperty AttributeName
+            }
         } else {
             $AttributeValue = Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Where-Object {$_.AttributeName -ceq $AttributeName} 
             $CurrentValue = $AttributeValue.CurrentValue
