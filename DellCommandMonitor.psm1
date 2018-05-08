@@ -85,6 +85,9 @@ function Get-BiosAttribute {
                     } else {
                         Throw "$_ does not match a valid AttributeName. AttributeNames are case sensitive"
                     }
+                } else {
+                    Write-Warning "AttributeName cannot be validated when used with -ComputerName parameter"
+                    $True
                 }
             }
         )]
