@@ -93,7 +93,13 @@ function Get-BiosAttribute {
         )]
         $AttributeName,
         [Parameter(ParameterSetName='List')][Switch]$ListAttributes,
-        [Parameter(ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$True)]$ComputerName
+        [Parameter(
+            ValueFromPipeline=$True,
+            ValueFromPipelineByPropertyName=$True,
+            ParameterSetName='Get'
+        )]
+        [Parameter(ParameterSetName='List')]
+        $ComputerName
     )
 
     Begin {
