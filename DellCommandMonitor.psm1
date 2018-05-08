@@ -119,7 +119,7 @@ function Get-BiosAttribute {
                         Thow "Could not start winrm on $ComputerName"
                     }
                 }
-                Get-CimInstance -ComputerName $ComputerName -Namespace Root\DCIM\sysman -ClassName DCIM_BiosEnumeration | Select-Object -ExpandProperty AttributeName
+                Get-CimInstance -ComputerName $ComputerName -Namespace Root\DCIM\sysman -ClassName DCIM_BiosEnumeration | Select-Object -ExpandProperty AttributeName | Sort-Object
             }
         } else {
             $AttributeValue = Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Where-Object {$_.AttributeName -ceq $AttributeName} 
