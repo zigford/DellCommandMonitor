@@ -105,13 +105,13 @@ function Get-BiosAttribute {
     }
 
     Process {
+        If ($ComputerName.ComputerName) {
+            $ComputerName = $ComputerName.ComputerName
+        }
         If ($ListAttributes) {
             if (-Not $ComputerName) {
                 $Global:BiosAttributeList
             } else {
-                If ($ComputerName.ComputerName) {
-                    $ComputerName = $ComputerName.ComputerName
-                }
                 If (-Not (Test-WSMan -ComputerName $ComputerName)) {
                     Try {
                         Get-Service -ComputerName $ComputerName | Start-Service
@@ -122,7 +122,11 @@ function Get-BiosAttribute {
                 Get-CimInstance -ComputerName $ComputerName -Namespace Root\DCIM\sysman -ClassName DCIM_BiosEnumeration | Select-Object -ExpandProperty AttributeName | Sort-Object
             }
         } else {
-            $AttributeValue = Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Where-Object {$_.AttributeName -ceq $AttributeName} 
+            If ($ComputerName) {
+                $AttributeValue = Get-CimInstance -ComputerName $ComputerName -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Where-Object {$_.AttributeName -ceq $AttributeName} 
+            } else {
+                $AttributeValue = Get-CimInstance -Namespace root\dcim\sysman -ClassName DCIM_BiosEnumeration | Where-Object {$_.AttributeName -ceq $AttributeName} 
+            }
             $CurrentValue = $AttributeValue.CurrentValue
             If ($AttributeValue.PossibleValuesDescription.Count -eq 1 -and $AttributeValue.PossibleValuesDescription -match '-') {
                 # Values are expressed as a range
