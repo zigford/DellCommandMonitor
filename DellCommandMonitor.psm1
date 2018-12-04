@@ -36,7 +36,7 @@ function Set-DellBiosPassword {
     }
 }
 
-function Get-BiosAttribute {
+function Get-DellBiosAttribute {
     <#
     .SYNOPSIS
         Display bios attributes using Dell Command | Monitor
@@ -126,7 +126,7 @@ function Get-BiosAttribute {
     }
 }
 
-function Set-BiosAttribute {
+function Set-DellBiosAttribute {
     <#
     .SYNOPSIS
         Set a bios attribute
@@ -135,15 +135,15 @@ function Set-BiosAttribute {
     .PARAMETER AttributeName
         Specify the bios attribute to set. AttributeName is case sensitive.
     .PARAMETER ValueName
-        Specify the name of the value to set. Obtained using Get-BiosAttribute -AttributeName 
+        Specify the name of the value to set. Obtained using Get-DellBiosAttribute -AttributeName 
     .PARAMETER Whatif
         Shows what would happen if the cmdlet runs. The cmdlet is not run.
     .EXAMPLE
         # Enable bios auto on, for Tuesday and Friday
-        PS>  'Tuesday','Friday'|%{Set-BiosAttribute -AttributeName "Auto on $_" Enable -BiosPassword password}
+        PS>  'Tuesday','Friday'|%{Set-DellBiosAttribute -AttributeName "Auto on $_" Enable -BiosPassword password}
     .EXAMPLE
         # Use whatif to test what would happen when setting the Auto On hour to 3
-        PS> Set-BiosAttribute 'Auto On Hour' -ValueName 3 -Whatif
+        PS> Set-DellBiosAttribute 'Auto On Hour' -ValueName 3 -Whatif
         What if: Performing the operation "SetBiosAttribute" on target Auto On Hour. 
     .NOTES
         Author: Jesse Harris
@@ -154,7 +154,7 @@ function Set-BiosAttribute {
     [CmdLetBinding()]
     Param(
         [Parameter(Mandatory=$True)][ValidateScript({
-            If ($_ -cin (Get-BiosAttribute -ListAttributes)){
+            If ($_ -cin (Get-DellBiosAttribute -ListAttributes)){
                 $True
             } else {
                 Throw "$_ does not match a valid AttributeName. AttributeNames are case sensitive"
@@ -166,7 +166,7 @@ function Set-BiosAttribute {
     )
     Begin {
         #Check if the value is a possible value
-        $CurrentAttribute = Get-BiosAttribute -AttributeName $AttributeName
+        $CurrentAttribute = Get-DellBiosAttribute -AttributeName $AttributeName
         if ($CurrentAttribute.PossibleValuesDescription.Count -eq 1 -and $CurrentAttribute.PossibleValuesDescription -match '-') {
             #Possible values are expressed as a range. Check if valuename fits in the range
             $PossibleRange = $CurrentAttribute.PossibleValuesDescription.Split('-')[0]..$CurrentAttribute.PossibleValuesDescription.Split('-')[1]
@@ -210,7 +210,7 @@ function Set-BiosAttribute {
     }
 }
 
-function Get-CurrentBootMode {
+function Get-DellCurrentBootMode {
     [CmdLetBinding()]
     Param()
     Begin{}
@@ -229,7 +229,7 @@ function Get-CurrentBootMode {
     }
 }
 
-function Get-BootOrderObject {
+function Get-DellBootOrderObject {
     [CmdLetBinding()]
     Param(
         [ValidateSet(
@@ -248,13 +248,13 @@ function Get-BootOrderObject {
     }
 }
 
-function Get-BootOrder {
+function Get-DellBootOrder {
     [CmdLetBinding()]
     Param()
     Begin {
     }
     Process {
-        $CurrentBootOrder = Get-BootOrderObject -BootOrderType (Get-CurrentBootMode) | ForEach-Object {
+        $CurrentBootOrder = Get-DellBootOrderObject -BootOrderType (Get-DellCurrentBootMode) | ForEach-Object {
             $PartComponent = $_.PartComponent
             $PartComponentMatch = $PartComponent.Replace('/','\\')
             $Query = "Select * from DCIM_BootSourceSetting Where __PATH = '" + $PartComponentMatch + "'"
@@ -268,36 +268,12 @@ function Get-BootOrder {
     }
 }
 
-function Get-UEFIBootOrder {
-    [CmdLetBinding()]
-    Param()
-    Begin {
-        if (-Not (Get-BootOrderObject -BootOrderType UEFI)) {
-            Write-Verbose "No UEFI Boot list configured"
-            break
-        } 
-    }
-    Process {
-        $CurrentBootOrder = Get-BootOrderObject -BootOrderType UEFI | ForEach-Object {
-            $PartComponent = $_.PartComponent
-            $PartComponentMatch = $PartComponent.Replace('/','\\')
-            $Query = "Select * from DCIM_BootSourceSetting Where __PATH = '" + $PartComponentMatch + "'"
-            [PSCustomObject]@{
-                'AssignedSequence' = $_.AssignedSequence
-                'BiosBootString' = (Get-WmiObject -Namespace root\dcim\sysman -query $Query).BiosBootString
-                'PartComponent' = $PartComponent
-            }
-        }
-        $CurrentBootOrder
-    }
-}
-
-function New-BootOrder {
+function New-DellBootOrder {
     [CmdLetBinding()]
         Param(
             [ValidateScript({
-                if ($_ -notin (Get-BootOrder).BiosBootString) {
-                    throw "Enter valid boot order strings. Obtain valid strings using the Get-BootOrder cmdlet"
+                if ($_ -notin (Get-DellBootOrder).BiosBootString) {
+                    throw "Enter valid boot order strings. Obtain valid strings using the Get-DellBootOrder cmdlet"
                 } else {
                     $true
                 }
@@ -307,13 +283,13 @@ function New-BootOrder {
     Begin {}
     Process {
         ForEach ($BootItem in $Order) {
-            Get-BootOrder | Where-Object {$_.BiosBootString -eq $BootItem}
+            Get-DellBootOrder | Where-Object {$_.BiosBootString -eq $BootItem}
         }
         
     }
 }
 
-function New-UEFIBootOrder {
+function New-DellUEFIBootOrder {
     [CmdLetBinding()]
     Param(
         [ValidateSet(
@@ -328,13 +304,13 @@ function New-UEFIBootOrder {
     Begin {}
     Process {
         ForEach ($BootItem in $Order) {
-            Get-UEFIBootOrder | Where-Object {$_.BiosBootString -eq $BootItem}
+            Get-DellBootOrder | Where-Object {$_.BiosBootString -eq $BootItem}
         }
         
     }
 }
 
-function Get-BootConfigObject {
+function Get-DellBootConfigObject {
     [CmdLetBinding()]
     Param(
         [ValidateSet(
@@ -351,7 +327,31 @@ function Get-BootConfigObject {
     }
 }
 
-function Set-BootOrder {
+function Set-DellBootOrder {
+   <#
+   .SYNOPSIS
+   Set boot order of a Dell PC with Dell Command | Monitor installed
+   
+   .DESCRIPTION
+   Using the Sysman\DCIM namespace that Dell Command | Monitor makes available, set the boot order using the changebootorder method of the dcim_bootconfigsetting class
+   
+   .PARAMETER BootOrder
+   An array of strings matching valid boot order strings. Valid values can be obtained using the Get-DellBootOrder cmdlet
+   
+   .PARAMETER BiosPassword
+   Blank if no bios password is set, otherwise set this or the command will fail.
+   
+   .PARAMETER SuspendBitlocker
+   If Bitlocker is enabled, it would be wise to suspend it for the next boot in order to avoid triggering bitlocker recovery mode.
+   
+   .EXAMPLE
+   PS> Set-DellBootOrder -BiosPassword 'mumstheword' -BootOrder (New-DellBootOrder -Order 'Onboard NIC(IPV4)') -SuspendBitlocker
+
+   Set's the Onboard Nic to be the first boot object. In this case any boot objects not specified are effectivly disabled. A saner option would be to put 'Windows Boot Manager' second
+   
+   .NOTES
+   Written with much love by Jesse Harris
+   #>  
 [CmdLetBinding()]
     Param(
         [ValidateScript(
@@ -367,7 +367,7 @@ function Set-BootOrder {
         [switch]$SuspendBitlocker
     )
     Begin {
-        if (-Not (Get-BootOrderObject -BootOrderType (Get-CurrentBootMode))) {
+        if (-Not (Get-DellBootOrderObject -BootOrderType (Get-DellCurrentBootMode))) {
             Write-Verbose "No Boot list configured"
             break
         } 
@@ -385,80 +385,25 @@ function Set-BootOrder {
             }
         }
         Write-Verbose 'Setting new boot order'
-        $Result = (Get-BootConfigObject -BootConfigType (Get-CurrentBootMode)).changebootorder($BootOrderArray, $BiosPassword)
+        $Result = (Get-DellBootConfigObject -BootConfigType (Get-DellCurrentBootMode)).changebootorder($BootOrderArray, $BiosPassword)
         If ($Result.ReturnValue -eq 0) {
             Write-Verbose 'Succesfully set new boot order'
-            Get-BootOrder
+            Get-DellBootOrder
         } else {
             Write-Error "Failed to set new boot order"
         }
     }
 }
 
-function Set-UEFIBootOrder {
-   <#
-   .SYNOPSIS
-   Set boot order of a UEFI configured Dell PC with Dell Command | Monitor installed
-   
-   .DESCRIPTION
-   Using the Sysman\DCIM namespace that Dell Command | Monitor makes available, set the boot order using the changebootorder method of the dcim_bootconfigsetting class
-   
-   .PARAMETER BootOrder
-   An array of strings matching valid boot order strings. Valid values can be obtained using the Get-UEFIBootOrder cmdlet
-   
-   .PARAMETER BiosPassword
-   Blank if no bios password is set, otherwise set this or the command will fail.
-   
-   .PARAMETER SuspendBitlocker
-   If Bitlocker is enabled, it would be wise to suspend it for the next boot in order to avoid triggering bitlocker recovery mode.
-   
-   .EXAMPLE
-   PS> Set-UEFIBootOrder -BiosPassword 'mumstheword' -BootOrder (New-UEFIBootOrder -Order 'Onboard NIC(IPV4)') -SuspendBitlocker
-
-   Set's the Onboard Nic to be the first boot object. In this case any boot objects not specified are effectivly disabled. A saner option would be to put 'Windows Boot Manager' second
-   
-   .NOTES
-   Written with much love by Jesse Harris
-   #>  
-    [CmdLetBinding()]
-    Param(
-        [ValidateScript(
-            {
-                if ($_.PartComponent) {
-                    $True
-                } Else {
-                    Throw "Not a valid boot order"
-                }
-            }
-        )]$BootOrder,
-        [string]$BiosPassword,
-        [switch]$SuspendBitlocker
-    )
-    Begin {
-        if (-Not (Get-BootOrderObject -BootOrderType UEFI)) {
-            Write-Verbose "No UEFI Boot list configured"
-            break
-        } 
-    }
-    Process {
-        $BootOrderArray = $BootOrder | ForEach-Object {$_.PartComponent}
-        If ($SuspendBitlocker) {
-            $Bitlocker = Get-BitLockerVolume -MountPoint $env:SystemDrive
-            If ($Bitlocker.ProtectionStatus.ToString() -eq 'On') {
-                Write-Verbose 'Suspending Bitlocker'
-                Suspend-BitLocker -MountPoint $env:SystemDrive -ErrorAction Stop | Out-Null
-                Write-Verbose 'Bitlocker Suspended'
-            } Else {
-                Write-Verbose 'Bitlocker protections already disabled'
-            }
-        }
-        Write-Verbose 'Setting new boot order'
-        $Result = (Get-BootConfigObject -BootConfigType UEFI).changebootorder($BootOrderArray, $BiosPassword)
-        If ($Result.ReturnValue -eq 0) {
-            Write-Verbose 'Succesfully set new boot order'
-            Get-UEFIBootOrder
-        } else {
-            Write-Error "Failed to set new boot order"
-        }
-    }
-}
+Export-ModuleMember -Function Get-DellBiosSetupPasswordState
+Export-ModuleMember -Function Get-DellBiosBootPasswordState
+Export-ModuleMember -Function Set-DellBiosPassword
+Export-ModuleMember -Function Get-DellBiosAttribute
+Export-ModuleMember -Function Set-DellBiosAttribute
+Export-ModuleMember -Function Set-DellBiosAttribute
+Export-ModuleMember -Function Get-DellCurrentBootMode
+Export-ModuleMember -Function Get-DellBootOrder
+Export-ModuleMember -Function New-DellBootOrder
+Export-ModuleMember -Function New-DellUEFIBootOrder
+Export-ModuleMember -Function Get-DellBootConfigObject
+Export-ModuleMember -Function Set-DellBootOrder
